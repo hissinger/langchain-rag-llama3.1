@@ -1,12 +1,12 @@
 import os
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.chat_models import ChatOllama
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain import hub
 
 VECTOR_STORE_PATH = "./vectorstore"
 EMBEDDINGS = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-small")
@@ -47,22 +47,16 @@ def format_docs(docs):
 def main():
     if not os.path.exists(VECTOR_STORE_PATH):
         vectorstore = create_vectorstore()
+    else:
+        vectorstore = FAISS.load_local(
+            VECTOR_STORE_PATH, EMBEDDINGS, allow_dangerous_deserialization=True
+        )
 
     # prompt
-    prompt = """ You need to answer the question in the sentence as same as in the  pdf content. . 
-    Given below is the context and question of the user.
-    context = {context}
-    question = {question}
-    if the answer is not in the pdf , answer "i don't know what you are talking about"
-    """
-    prompt = ChatPromptTemplate.from_template(prompt)
+    prompt = hub.pull("rlm/rag-prompt")
 
+    # model
     llm = ChatOllama(model="llama3.1:8b")
-
-    # load vectorstore
-    vectorstore = FAISS.load_local(
-        VECTOR_STORE_PATH, EMBEDDINGS, allow_dangerous_deserialization=True
-    )
 
     # create chain with source
     retriever = vectorstore.as_retriever()
@@ -77,7 +71,7 @@ def main():
     ).assign(answer=rag_chain_from_docs)
 
     # query
-    query = "연차휴가 사용촉진이 뭔가요?"
+    query = "연차 계산 방법을 알려주세요."
     response = rag_chain_with_source.invoke(query)
 
     # print response
